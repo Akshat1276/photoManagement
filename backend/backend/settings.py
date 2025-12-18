@@ -103,6 +103,10 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 # Custom user model
 AUTH_USER_MODEL = 'core.User'
 
+# Email (development defaults to console backend)
+EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
+DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL', 'no-reply@example.com')
+
 # Django REST Framework
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
@@ -121,3 +125,13 @@ CORS_ALLOW_ALL_ORIGINS = True  # For development only
 # Celery
 CELERY_BROKER_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
 CELERY_RESULT_BACKEND = os.getenv("REDIS_URL", "redis://localhost:6379/0")
+
+# Omniport OAuth2 configuration
+OMNIPORT_BASE_URL = os.getenv("OMNIPORT_BASE_URL", "").rstrip("/")
+OMNIPORT_CLIENT_ID = os.getenv("OMNIPORT_CLIENT_ID", "")
+OMNIPORT_CLIENT_SECRET = os.getenv("OMNIPORT_CLIENT_SECRET", "")
+# This should match one of the redirect URIs registered with Omniport
+OMNIPORT_REDIRECT_URI = os.getenv(
+    "OMNIPORT_REDIRECT_URI",
+    "http://127.0.0.1:8000/api/auth/omniport/callback/",
+)

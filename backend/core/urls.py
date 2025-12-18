@@ -1,5 +1,8 @@
-from django.urls import path
+from django.urls import include, path
 
-
-urlpatterns: list[path] = []
- 
+urlpatterns = [
+	path("auth/", include("core.users.urls")),
+	path("events/", include("core.events.urls")),
+	path("photos/", include("core.photos.urls")),
+	path("notifications/", include("core.notifications.urls")),
+]

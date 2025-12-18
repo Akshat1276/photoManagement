@@ -2,6 +2,7 @@ from django.conf import settings
 from django.contrib.auth.models import AbstractUser, BaseUserManager
 from django.core.validators import MinValueValidator
 from django.db import models
+from django.utils import timezone
 
 
 class UserManager(BaseUserManager):
@@ -19,7 +20,7 @@ class UserManager(BaseUserManager):
 	def create_user(self, email, password=None, **extra_fields):
 		extra_fields.setdefault("is_staff", False)
 		extra_fields.setdefault("is_superuser", False)
-		return self._create_user(email, password, extra_fields=extra_fields)
+		return self._create_user(email, password, **extra_fields)
 
 	def create_superuser(self, email, password=None, **extra_fields):
 		extra_fields.setdefault("is_staff", True)
@@ -60,6 +61,17 @@ class Profile(models.Model):
 	def __str__(self) -> str:
 		return self.full_name or str(self.user)
 
+class EmailVerificationCode(models.Model):
+	user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+	code = models.CharField(max_length=6)
+	created_at = models.DateTimeField(auto_now_add=True)
+	is_used = models.BooleanField(default=False)
+
+	def is_expired(self, minutes: int = 10) -> bool:
+		return timezone.now() - self.created_at > timezone.timedelta(minutes=minutes)
+
+	def __str__(self) -> str:
+		return f"OTP for {self.user} at {self.created_at:%Y-%m-%d %H:%M:%S}"
 
 class Role(models.Model):
 	name = models.CharField(max_length=100, unique=True)
