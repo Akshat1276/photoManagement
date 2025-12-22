@@ -3,9 +3,13 @@ import logging
 from celery import shared_task
 from django.core.files.base import ContentFile
 from PIL import Image, ImageDraw, ImageFont, ExifTags
-from core.models import Photo
+from core.models import Photo, Tag, PhotoTag
 
 logger = logging.getLogger(__name__)
+
+_ai_model = None
+_ai_preprocess = None
+_ai_labels = None
 
 def _json_safe(value):
     """Convert EXIF values to JSON-serializable primitives."""
@@ -46,6 +50,55 @@ def _safe_get_datetime(exif: dict):
 def _safe_get_camera_model(exif: dict):
     return exif.get("Model") or exif.get("Make")
 
+def _get_ai_tagging_model():
+    global _ai_model, _ai_preprocess, _ai_labels
+    if _ai_model is not None:
+        return _ai_model, _ai_preprocess, _ai_labels
+    from django.conf import settings
+    if not getattr(settings, "ENABLE_AI_TAGGING", False):
+        return None, None, None
+    try:
+        import torch
+        from torchvision import models
+        from torchvision.models import ResNet50_Weights
+    except Exception:
+        logger.warning("AI tagging disabled: torch/torchvision not available")
+        return None, None, None
+    weights = ResNet50_Weights.DEFAULT
+    _ai_model = models.resnet50(weights=weights)
+    _ai_model.eval()
+    _ai_preprocess = weights.transforms()
+    _ai_labels = weights.meta.get("categories", [])
+    logger.info("AI tagging model loaded (ResNet50)")
+    return _ai_model, _ai_preprocess, _ai_labels
+def _auto_tag_photo(photo: Photo, img: Image.Image) -> None:
+    try:
+        import torch
+    except Exception:
+        return
+    model, preprocess, labels = _get_ai_tagging_model()
+    if model is None or preprocess is None or not labels:
+        return
+
+    input_tensor = preprocess(img).unsqueeze(0)
+    with torch.no_grad():
+        outputs = model(input_tensor)
+        probs = torch.nn.functional.softmax(outputs[0], dim=0)
+
+    topk = probs.topk(5)
+    for score, idx in zip(topk.values, topk.indices):
+        label = str(labels[int(idx)])
+        confidence = float(score)
+        tag, created = Tag.objects.get_or_create(
+            name=label,
+            tag_type=Tag.TagType.AI,
+            defaults={"confidence": confidence},
+        )
+        if not created and (tag.confidence is None or confidence > tag.confidence):
+            tag.confidence = confidence
+            tag.save(update_fields=["confidence"])
+        PhotoTag.objects.get_or_create(photo=photo, tag=tag)
+
 @shared_task
 def process_photo(photo_id: int) -> None:
     try:
@@ -58,9 +111,9 @@ def process_photo(photo_id: int) -> None:
         logger.warning("process_photo: Photo %s has no original image", photo_id)
         return
 
-    image_path = photo.image_original.path
-
-    with Image.open(image_path) as img:
+    # Open the image from the configured storage (local or S3)
+    photo.image_original.open()
+    with Image.open(photo.image_original) as img:
         exif = _extract_exif_data(img)
         img = img.convert("RGB")
         if exif:
@@ -126,5 +179,5 @@ def process_photo(photo_id: int) -> None:
             ContentFile(wm_bytes.read()),
             save=False,
         )
-
+        _auto_tag_photo(photo, img)
     photo.save(update_fields=["metadata", "taken_at", "camera_model", "image_thumbnail", "image_watermarked"])

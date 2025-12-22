@@ -15,3 +15,4 @@ class EventDetailView(generics.RetrieveUpdateDestroyAPIView):
 	queryset = Event.objects.all()
 	serializer_class = EventSerializer
 	permission_classes = [IsOwnerOrReadOnly]
+	lookup_field = "slug"

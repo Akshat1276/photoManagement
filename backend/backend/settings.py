@@ -20,7 +20,9 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'rest_framework',
+    'drf_spectacular',
     'corsheaders',
+    'storages',
     'core',
 ]
 
@@ -94,8 +96,42 @@ USE_TZ = True
 STATIC_URL = '/static/'
 STATIC_ROOT = BASE_DIR / 'static'
 
-MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
+
+# Media storage: local filesystem by default, S3 when USE_S3_MEDIA=True
+USE_S3_MEDIA = os.getenv("USE_S3_MEDIA", "False") == "True"
+
+if USE_S3_MEDIA:
+    AWS_ACCESS_KEY_ID = os.getenv("AWS_ACCESS_KEY_ID")
+    AWS_SECRET_ACCESS_KEY = os.getenv("AWS_SECRET_ACCESS_KEY")
+    AWS_STORAGE_BUCKET_NAME = os.getenv("AWS_STORAGE_BUCKET_NAME")
+    AWS_S3_REGION_NAME = os.getenv("AWS_S3_REGION_NAME")
+    AWS_S3_SIGNATURE_VERSION = "s3v4"
+    AWS_S3_FILE_OVERWRITE = False
+    # Bucket has ACLs disabled (Object Ownership: Bucket owner enforced)
+    # so we must not send any ACL; public read is handled via bucket policy.
+    AWS_DEFAULT_ACL = None
+    AWS_QUERYSTRING_AUTH = False
+    AWS_S3_CUSTOM_DOMAIN = os.getenv(
+        "AWS_S3_CUSTOM_DOMAIN",
+        f"{AWS_STORAGE_BUCKET_NAME}.s3.{AWS_S3_REGION_NAME}.amazonaws.com",
+    )
+
+    STORAGES = {
+        "default": {
+            "BACKEND": "storages.backends.s3boto3.S3Boto3Storage",
+        },
+        "staticfiles": {
+            "BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage",
+        },
+    }
+
+    MEDIA_URL = f"https://{AWS_S3_CUSTOM_DOMAIN}/"
+else:
+    MEDIA_URL = '/media/'
+
+# ML/AI photo auto-tagging
+ENABLE_AI_TAGGING = os.getenv("ENABLE_AI_TAGGING", "False") == "True"
 
 # Default primary key field type
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
@@ -117,6 +153,14 @@ REST_FRAMEWORK = {
         'rest_framework.permissions.IsAuthenticatedOrReadOnly',
     ),
     'DEFAULT_FILTER_BACKENDS': ['django_filters.rest_framework.DjangoFilterBackend'],
+    'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
+}
+
+SPECTACULAR_SETTINGS = {
+    'TITLE': 'Smart Event Photo Management API',
+    'DESCRIPTION': 'Backend API for the event photo management platform, including auth, events, photos, and engagement.',
+    'VERSION': '1.0.0',
+    'SCHEMA_PATH_PREFIX': r'/api',
 }
 
 # CORS

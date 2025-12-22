@@ -8,6 +8,34 @@ Base URL in development:
 
 - `http://127.0.0.1:8000/api/`
 
+### API Documentation (Swagger / OpenAPI)
+
+- OpenAPI schema (machine-readable): `GET /api/schema/`
+- Swagger UI (interactive docs): `GET /api/docs/`
+- ReDoc UI: `GET /api/redoc/`
+
+These are powered by `drf-spectacular` and are available when the backend is running locally.
+
+## Media Storage (Local vs S3)
+
+The project supports two media storage modes, controlled by an environment flag.
+
+- Local filesystem (default for graders/development)
+	- `.env` contains `USE_S3_MEDIA=False` (or the variable is omitted).
+	- Uploaded images are stored under `backend/media/` and served at `/media/` when `DEBUG=True`.
+
+- AWS S3 (production-style mode)
+	- `.env` contains `USE_S3_MEDIA=True` and the following variables:
+		- `AWS_ACCESS_KEY_ID`
+		- `AWS_SECRET_ACCESS_KEY`
+		- `AWS_STORAGE_BUCKET_NAME` (e.g. `photo-management-app`)
+		- `AWS_S3_REGION_NAME` (e.g. `eu-north-1`)
+	- Django uses `storages.backends.s3boto3.S3Boto3Storage` as the default file storage via the `STORAGES` setting.
+	- Image fields (`image_original`, `image_thumbnail`, `image_watermarked`) are written directly to S3; no `media/` folder is created locally.
+	- `MEDIA_URL` points at the S3 bucket domain, and S3 bucket policy controls public read access.
+
+If S3 is not configured or credentials are missing, set `USE_S3_MEDIA=False` so the app falls back to local storage.
+
 ## Authentication
 
 - `POST /api/auth/register/`
@@ -106,6 +134,35 @@ High-level rules:
 		- `event` (integer event ID, required)
 		- `image_original` (file upload, required)
 		- Optional: `taken_at`, `camera_model`, `visibility`, `metadata` (JSON).
+
+- `POST /api/photos/batch-upload/` *(Photographer / IMG Member / Event Coordinator / Admin required)*
+	- Upload **multiple photos** for a single event in one request.
+	- Multipart form fields:
+		- `event` (integer event ID, required)
+		- `visibility` (optional; defaults to `public`)
+		- `images` (one or more files using the same field name)
+	- The API creates a `Photo` for each file and enqueues the background processing task for EXIF, thumbnails, and watermarks.
+
+- `POST /api/photos/batch-operations/` *(Photographer / IMG Member / Event Coordinator / Admin required)*
+	- Perform bulk actions on multiple photos owned by the current user (admins can act on any photos).
+	- JSON body:
+		- `photo_ids`: list of photo IDs (required)
+		- `action`: one of `"delete"`, `"move"`, `"update_visibility"`, `"set_tags"` (required)
+		- For `move`: `target_event` (integer event ID)
+		- For `update_visibility`: `visibility` (one of the Photo.Visibility values)
+		- For `set_tags`: `tags` (list of strings, replaces manual tags)
+
+### ML/AI Auto-Tagging
+
+The backend includes optional support for automatic photo tagging using a pre-trained
+ResNet50 image classification model:
+
+- Controlled by the `ENABLE_AI_TAGGING` environment variable (default: `False`).
+- When enabled and if `torch`/`torchvision` are installed, the `process_photo` Celery
+	task runs the model on each uploaded image and attaches the top predictions as
+	AI tags using the `Tag`/`PhotoTag` models.
+- If the ML dependencies are not available, tagging is skipped without affecting the
+	rest of the processing pipeline.
 
 - `GET /api/photos/<id>/`
 	- Retrieve a single photo.
