@@ -15,7 +15,7 @@ class RegisterSerializer(serializers.ModelSerializer):
 		full_name = validated_data.pop("full_name")
 		password = validated_data.pop("password")
 		user = User.objects.create_user(email=validated_data["email"], password=password)
-		Profile.objects.create(user=user, full_name=full_name)
+		# Profile.objects.create(user=user, full_name=full_name)
 		return user
 
 
@@ -40,6 +40,16 @@ class LoginSerializer(serializers.Serializer):
 class ProfileSerializer(serializers.ModelSerializer):
 	email = serializers.EmailField(source="user.email", read_only=True)
 
+	is_admin = serializers.SerializerMethodField()
+
+
+	def get_is_admin(self, obj):
+		user = obj.user
+		if not user or not user.is_authenticated:
+			return False
+		# Check if user has a role named 'Admin' (case-insensitive)
+		return user.roles.filter(name__iexact="admin").exists()
+
 	class Meta:
 		model = Profile
 		fields = [
@@ -49,6 +59,7 @@ class ProfileSerializer(serializers.ModelSerializer):
 			"batch",
 			"department",
 			"profile_pic_url",
+			"is_admin",
 		]
 class EmailVerificationSerializer(serializers.Serializer):
 	email = serializers.EmailField()

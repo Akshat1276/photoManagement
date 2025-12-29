@@ -5,6 +5,8 @@ from django.core.mail import send_mail
 from django.utils.crypto import get_random_string
 from rest_framework import generics, permissions, response, status
 from rest_framework.views import APIView
+from django.http import HttpResponseRedirect
+
 from core.models import EmailVerificationCode, Profile, User
 from .serializers import (
 	EmailVerificationSerializer,
@@ -12,6 +14,9 @@ from .serializers import (
 	ProfileSerializer,
 	RegisterSerializer,
 )
+from django.utils.decorators import method_decorator
+from django.views.decorators.csrf import csrf_exempt
+from django.views.decorators.csrf import csrf_exempt
 
 class RegisterView(generics.CreateAPIView):
 	serializer_class = RegisterSerializer
@@ -215,13 +220,23 @@ class OmniportCallbackView(APIView):
 			profile.save()
 		from django.contrib.auth import login
 		login(request, user)
-		return response.Response(
-			{"detail": "Logged in with Omniport.", "email": user.email},
-			status=status.HTTP_200_OK,
-		)
+		# After a successful Omniport login, redirect the browser back to the
+		# frontend app (typically the /login route). The session cookie set here
+		# will be sent to the frontend as long as the host matches.
+		redirect_url = getattr(settings, "FRONTEND_LOGIN_REDIRECT_URL", "/")
+		return HttpResponseRedirect(redirect_url)
+from django.utils.decorators import method_decorator
+
+# Exempt ProfileView from CSRF for all methods (safe for this endpoint)
+from rest_framework.exceptions import NotAuthenticated
+
+@method_decorator(csrf_exempt, name="dispatch")
 class ProfileView(generics.RetrieveUpdateAPIView):
 	serializer_class = ProfileSerializer
 	permission_classes = [permissions.IsAuthenticated]
 
 	def get_object(self):
-		return Profile.objects.get(user=self.request.user)
+		user = self.request.user
+		if not user or not user.is_authenticated:
+			raise NotAuthenticated("Authentication credentials were not provided.")
+		return Profile.objects.get(user=user)

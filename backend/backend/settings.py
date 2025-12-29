@@ -1,3 +1,8 @@
+# Celery: Import custom task modules explicitly
+CELERY_IMPORTS = (
+    "core.users.face_tasks",
+    "core.photos.face_tasks",
+)
 import os
 from pathlib import Path
 from dotenv import load_dotenv
@@ -13,18 +18,29 @@ ALLOWED_HOSTS = os.getenv("ALLOWED_HOSTS", "localhost,127.0.0.1").split(",")
 
 # Application definition
 INSTALLED_APPS = [
+    'daphne',
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'django.contrib.postgres',
     'rest_framework',
     'drf_spectacular',
     'corsheaders',
     'storages',
+    'channels',
     'core',
 ]
+CHANNEL_LAYERS = {
+    "default": {
+        "BACKEND": "channels_redis.core.RedisChannelLayer",
+        "CONFIG": {
+            "hosts": [(os.getenv("REDIS_HOST", "localhost"), int(os.getenv("REDIS_PORT", 6379)))],
+        },
+    },
+}
 
 MIDDLEWARE = [
     'corsheaders.middleware.CorsMiddleware',
@@ -129,6 +145,7 @@ if USE_S3_MEDIA:
     MEDIA_URL = f"https://{AWS_S3_CUSTOM_DOMAIN}/"
 else:
     MEDIA_URL = '/media/'
+    MEDIA_ROOT = BASE_DIR / "media"
 
 # ML/AI photo auto-tagging
 ENABLE_AI_TAGGING = os.getenv("ENABLE_AI_TAGGING", "False") == "True"
@@ -143,8 +160,9 @@ AUTH_USER_MODEL = 'core.User'
 EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
 DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL', 'no-reply@example.com')
 
-# Django REST Framework
 REST_FRAMEWORK = {
+    # "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.PageNumberPagination",
+    # "PAGE_SIZE": 20,   # adjust as needed for infinite scroll batch size
     'DEFAULT_AUTHENTICATION_CLASSES': (
         'rest_framework.authentication.SessionAuthentication',
         # 'rest_framework_simplejwt.authentication.JWTAuthentication',  # Uncomment for JWT
@@ -163,8 +181,24 @@ SPECTACULAR_SETTINGS = {
     'SCHEMA_PATH_PREFIX': r'/api',
 }
 
+
+
 # CORS
-CORS_ALLOW_ALL_ORIGINS = True  # For development only
+CORS_ALLOW_CREDENTIALS = True
+CORS_ALLOWED_ORIGINS = [
+    "http://127.0.0.1:5173",
+]
+CORS_ALLOW_ALL_ORIGINS = False
+
+# CSRF trusted origins for local frontend
+CSRF_TRUSTED_ORIGINS = [
+    "http://127.0.0.1:5173",
+]
+
+# Session cookie settings for cross-origin auth
+SESSION_COOKIE_SAMESITE = "Lax"
+SESSION_COOKIE_SECURE = False
+SESSION_COOKIE_DOMAIN = None  # Ensure session cookie is valid for localhost
 
 # Celery
 CELERY_BROKER_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
@@ -178,4 +212,11 @@ OMNIPORT_CLIENT_SECRET = os.getenv("OMNIPORT_CLIENT_SECRET", "")
 OMNIPORT_REDIRECT_URI = os.getenv(
     "OMNIPORT_REDIRECT_URI",
     "http://127.0.0.1:8000/api/auth/omniport/callback/",
+)
+
+# Where to send the browser after Omniport login succeeds.
+# For local development this points to the Vite dev server login route.
+FRONTEND_LOGIN_REDIRECT_URL = os.getenv(
+    "FRONTEND_LOGIN_REDIRECT_URL",
+    "http://127.0.0.1:5173/dashboard",
 )

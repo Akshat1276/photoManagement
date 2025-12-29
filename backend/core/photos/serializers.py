@@ -12,6 +12,20 @@ class PhotoSerializer(serializers.ModelSerializer):
 	comments_count = serializers.IntegerField(
 		source="comments.count", read_only=True
 	)
+	liked_by_user = serializers.SerializerMethodField()
+	favourited_by_user = serializers.SerializerMethodField()
+
+	def get_liked_by_user(self, obj):
+		user = self.context.get("request").user if self.context.get("request") else None
+		if not user or not user.is_authenticated:
+			return False
+		return obj.likes.filter(user=user).exists()
+
+	def get_favourited_by_user(self, obj):
+		user = self.context.get("request").user if self.context.get("request") else None
+		if not user or not user.is_authenticated:
+			return False
+		return obj.favourites.filter(user=user).exists()
 
 	def validate_metadata(self, value):
 		if value in (None, "", {}):
@@ -36,6 +50,8 @@ class PhotoSerializer(serializers.ModelSerializer):
 			"likes_count",
 			"favourites_count",
 			"comments_count",
+			"liked_by_user",
+			"favourited_by_user",
 		]
 		read_only_fields = [
 			"id",
@@ -47,6 +63,8 @@ class PhotoSerializer(serializers.ModelSerializer):
 			"likes_count",
 			"favourites_count",
 			"comments_count",
+			"liked_by_user",
+			"favourited_by_user",
 		]
 
 class CommentSerializer(serializers.ModelSerializer):

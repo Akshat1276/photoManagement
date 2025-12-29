@@ -3,6 +3,12 @@ from django.contrib.auth.models import AbstractUser, BaseUserManager
 from django.core.validators import MinValueValidator
 from django.db import models
 from django.utils import timezone
+from django.db.models.signals import post_save
+from django.dispatch import receiver
+from django.contrib.postgres.fields import ArrayField
+
+
+
 
 
 class UserManager(BaseUserManager):
@@ -39,6 +45,8 @@ class User(AbstractUser):
 	email = models.EmailField(unique=True)
 	is_verified = models.BooleanField(default=False)
 	created_at = models.DateTimeField(auto_now_add=True)
+	roles = models.ManyToManyField('Role', blank=True, related_name='users')
+	face_encoding = models.JSONField(null=True, blank=True)
 
 	USERNAME_FIELD = "email"
 	REQUIRED_FIELDS: list[str] = []
@@ -73,27 +81,65 @@ class EmailVerificationCode(models.Model):
 	def __str__(self) -> str:
 		return f"OTP for {self.user} at {self.created_at:%Y-%m-%d %H:%M:%S}"
 
+
+class Permission(models.Model):
+	"""
+	Represents a granular permission that can be assigned to roles.
+	Example: 'add_event', 'edit_photo', etc.
+	"""
+	code = models.CharField(max_length=100, unique=True)
+	description = models.TextField(blank=True)
+	created_at = models.DateTimeField(auto_now_add=True)
+	updated_at = models.DateTimeField(auto_now=True)
+	updated_by = models.ForeignKey(
+		settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name='updated_permissions')
+
+	def __str__(self) -> str:
+		return self.code
+
+
 class Role(models.Model):
 	name = models.CharField(max_length=100, unique=True)
 	description = models.TextField(blank=True)
+	permissions = models.ManyToManyField(Permission, blank=True, related_name='roles')
+	is_active = models.BooleanField(default=True)
+	created_at = models.DateTimeField(auto_now_add=True)
+	updated_at = models.DateTimeField(auto_now=True)
+	updated_by = models.ForeignKey(
+		settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name='updated_roles')
 
 	def __str__(self) -> str:
 		return self.name
 
+	# Signal to auto-create Profile when a new User is created
+@receiver(post_save, sender=settings.AUTH_USER_MODEL)
+def create_user_profile(sender, instance, created, **kwargs):
+	from .models import Profile  # Avoid circular import
+	if created:
+		Profile.objects.get_or_create(user=instance)
 
-class UserRole(models.Model):
-	user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
-	role = models.ForeignKey(Role, on_delete=models.CASCADE)
-	created_at = models.DateTimeField(auto_now_add=True)
 
-	class Meta:
-		unique_together = ("user", "role")
-
-	def __str__(self) -> str:
-		return f"{self.user} -> {self.role}"
 
 
 class Event(models.Model):
+	def is_coordinator(self, user):
+		if not user or not user.is_authenticated:
+			return False
+		return user.is_superuser or user in self.coordinators.all()
+
+	def is_photographer(self, user):
+		if not user or not user.is_authenticated:
+			return False
+		return user.is_superuser or user in self.photographers.all()
+
+	def is_admin(self, user):
+		return user and user.is_authenticated and user.roles.filter(name__iexact="admin").exists()
+
+	def is_img_member(self, user):
+		return user and user.is_authenticated
+
+	def can_manage_event(self, user):
+		return self.is_admin(user) or self.is_coordinator(user)
 	title = models.CharField(max_length=255)
 	slug = models.SlugField(unique=True)
 	description = models.TextField(blank=True)
@@ -104,6 +150,16 @@ class Event(models.Model):
 		on_delete=models.CASCADE,
 		related_name="created_events",
 	)
+	coordinators = models.ManyToManyField(
+		settings.AUTH_USER_MODEL,
+		blank=True,
+		related_name="coordinated_events"
+	)
+	photographers = models.ManyToManyField(
+		settings.AUTH_USER_MODEL,
+		blank=True,
+		related_name="photographed_events"
+	)
 	cover_url = models.URLField(blank=True)
 	created_at = models.DateTimeField(auto_now_add=True)
 
@@ -112,6 +168,42 @@ class Event(models.Model):
 
 
 class Photo(models.Model):
+	def can_edit(self, user):
+		if not user or not user.is_authenticated:
+			return False
+		if user.is_superuser:
+			return True
+		if self.event.is_coordinator(user):
+			return True
+		return self.uploaded_by == user
+
+	def can_delete(self, user):
+		return self.can_edit(user)
+
+	def can_download(self, user, variant="original"):
+		from django.utils import timezone
+		if not user or not user.is_authenticated:
+			# Only allow guests to download public watermarked
+			return self.visibility == self.Visibility.PUBLIC and variant != "original" and self._within_time_window()
+		if user.is_superuser:
+			return True
+		if self.event.is_coordinator(user):
+			return True
+		if self.event.is_photographer(user):
+			return True
+		# All registered users are IMG members
+		if not self._within_time_window():
+			return False
+		if variant == "original":
+			return self.visibility in [self.Visibility.PUBLIC, self.Visibility.EVENT_ONLY, self.Visibility.ROLE_BASED, self.Visibility.PRIVATE]
+		else:
+			return self.visibility in [self.Visibility.PUBLIC, self.Visibility.EVENT_ONLY, self.Visibility.ROLE_BASED]
+
+	def _within_time_window(self, days=30):
+		from django.utils import timezone
+		if not self.created_at:
+			return False
+		return (timezone.now() - self.created_at).days < days
 	class Visibility(models.TextChoices):
 		PUBLIC = "public", "Public"
 		PRIVATE = "private", "Private"

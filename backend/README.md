@@ -1,4 +1,3 @@
-
 # Backend API Overview
 
 This Django REST Framework backend powers the Smart Event Photo Management platform.
@@ -201,6 +200,29 @@ ResNet50 image classification model:
 
 - `POST /api/notifications/<id>/read/` *(auth required)*
 	- Mark a single notification as read.
+
+## Photos of Me (Face Recognition)
+
+This feature allows users to see all event photos in which their face appears, using face recognition.
+
+- Users upload a reference selfie, from which a face encoding is generated and stored on their user profile.
+- When a user requests “Photos of Me,” the backend loads all event photos, extracts face encodings from each, and compares them to the user’s reference encoding using the face_recognition library.
+- Matching photos are returned to the frontend.
+
+### Implementation Details
+- Images are loaded from S3 (or local storage), read as bytes, wrapped in a BytesIO object, opened with PIL, converted to RGB, and rotated according to EXIF orientation before being converted to a NumPy array for face_recognition.
+- This robust pipeline ensures images are always in the correct format and orientation, allowing face_recognition to detect faces reliably.
+
+### Dependencies
+- face_recognition
+- numpy
+- pillow
+
+These must be present in requirements.txt.
+
+### Troubleshooting
+- If face_recognition finds 0 faces, ensure the image pipeline (BytesIO, PIL, RGB, EXIF) is followed as above.
+- All images must be accessible and valid JPEG/PNG files.
 
 ## Permissions Summary
 

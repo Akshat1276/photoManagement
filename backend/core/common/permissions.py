@@ -1,5 +1,17 @@
 from rest_framework.permissions import SAFE_METHODS, BasePermission
-from .utils import user_has_any_role
+from .utils import user_has_any_role, user_has_permission
+class HasPermission(BasePermission):
+	"""
+	Checks if the user has a specific permission code via any of their roles.
+	Usage: set required_permission = "permission_code" on the view or subclass.
+	"""
+	required_permission: str = None
+
+	def has_permission(self, request, view):
+		code = getattr(view, "required_permission", self.required_permission)
+		if not code:
+			return False
+		return user_has_permission(request.user, code)
 
 
 class IsOwnerOrReadOnly(BasePermission):

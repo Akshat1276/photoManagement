@@ -6,7 +6,12 @@ from .serializers import EventSerializer
 class EventListCreateView(generics.ListCreateAPIView):
 	queryset = Event.objects.all().order_by("-start_datetime")
 	serializer_class = EventSerializer
-	permission_classes = [permissions.IsAuthenticatedOrReadOnly, IsEventCoordinatorOrAbove]
+	permission_classes = [permissions.IsAuthenticatedOrReadOnly]
+
+	def get_permissions(self):
+		if self.request.method == "POST":
+			return [permissions.IsAuthenticated(), IsEventCoordinatorOrAbove()]
+		return [permissions.IsAuthenticatedOrReadOnly()]
 
 	def perform_create(self, serializer):
 		serializer.save(created_by=self.request.user)
