@@ -21,7 +21,11 @@ class IsOwnerOrReadOnly(BasePermission):
 		user = request.user
 		if not user or not user.is_authenticated:
 			return False
+		# Django staff/superusers and custom "Admin" role can modify any object
 		if getattr(user, "is_staff", False) or getattr(user, "is_superuser", False):
+			return True
+		# Custom role-based admin
+		if user_has_any_role(user, ["Admin"]):
 			return True
 		owner = None
 		for attr in ("uploaded_by", "created_by", "user"):

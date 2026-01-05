@@ -87,8 +87,6 @@ export async function fetchProfileRequest(): Promise<Profile> {
   const res = await api.get<Profile>("/auth/me/");
   return res.data;
 }
-
-// -------- Events & Photos (minimal for now) --------
 export interface Event {
   id: number;
   title: string;
@@ -120,6 +118,41 @@ export interface Photo {
   comments_count: number;
   liked_by_user?: boolean;
   favourited_by_user?: boolean;
+}
+
+// -------- Photo comments --------
+export interface PhotoComment {
+  id: number;
+  photo: number;
+  user: number;
+  user_email: string;
+  parent_comment: number | null;
+  content: string;
+  created_at: string;
+}
+
+export async function fetchPhotoCommentsRequest(photoId: number): Promise<PhotoComment[]> {
+  const res = await api.get<PhotoComment[]>(`/photos/${photoId}/comments/`);
+  return res.data;
+}
+
+export async function createPhotoCommentRequest(photoId: number, data: {
+  content: string;
+  parent_comment?: number | null;
+}): Promise<PhotoComment> {
+  const res = await api.post<PhotoComment>(`/photos/${photoId}/comments/`, data);
+  return res.data;
+}
+
+export async function updatePhotoCommentRequest(commentId: number, data: {
+  content: string;
+}): Promise<PhotoComment> {
+  const res = await api.patch<PhotoComment>(`/photos/comments/${commentId}/`, data);
+  return res.data;
+}
+
+export async function deletePhotoCommentRequest(commentId: number): Promise<void> {
+  await api.delete(`/photos/comments/${commentId}/`);
 }
 export const BACKEND_URL = "http://127.0.0.1:8000";
 
@@ -242,7 +275,6 @@ export async function unlikePhotoRequest(
   const res = await api.delete<LikeResponse>(`/photos/${photoId}/like/`);
   return res.data;
 }
-
 // Favourite / unfavourite
 export interface FavouriteResponse {
   detail: string;

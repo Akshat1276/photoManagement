@@ -171,10 +171,16 @@ class Photo(models.Model):
 	def can_edit(self, user):
 		if not user or not user.is_authenticated:
 			return False
-		if user.is_superuser:
+		# Global high-privilege checks
+		if getattr(user, "is_superuser", False) or getattr(user, "is_staff", False):
 			return True
+		# Custom Admin role for this project (event-level helper checks role "Admin")
+		if self.event.is_admin(user):
+			return True
+		# Event coordinators can manage photos in their events
 		if self.event.is_coordinator(user):
 			return True
+		# Fallback: only the uploader can edit
 		return self.uploaded_by == user
 
 	def can_delete(self, user):
@@ -185,8 +191,15 @@ class Photo(models.Model):
 		if not user or not user.is_authenticated:
 			# Only allow guests to download public watermarked
 			return self.visibility == self.Visibility.PUBLIC and variant != "original" and self._within_time_window()
-		if user.is_superuser:
+		# Hard privacy: private photos are only downloadable by their uploader
+		if self.visibility == self.Visibility.PRIVATE and self.uploaded_by != user:
+			return False
+		# Global high-privilege checks: superusers, staff, and custom Admin role
+		if getattr(user, "is_superuser", False) or getattr(user, "is_staff", False):
 			return True
+		if self.event.is_admin(user):
+			return True
+		# Event coordinators and photographers always allowed
 		if self.event.is_coordinator(user):
 			return True
 		if self.event.is_photographer(user):

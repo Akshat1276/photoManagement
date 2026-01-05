@@ -13,7 +13,6 @@ import Button from "@mui/material/Button";
 import Checkbox from "@mui/material/Checkbox";
 import FormControlLabel from "@mui/material/FormControlLabel";
 import DownloadIcon from '@mui/icons-material/Download';
-import DownloadForOfflineIcon from '@mui/icons-material/DownloadForOffline';
 import FavoriteBorderIcon from '@mui/icons-material/FavoriteBorder';
 import BookmarkBorderIcon from '@mui/icons-material/BookmarkBorder';
 import {
@@ -29,6 +28,7 @@ import {
   fetchMyFavouritesRequest,
   type Photo,
 } from "../api/client";
+import { PhotoViewerModal } from "../components/PhotoViewerModal";
 
 /* ---------------- Utilities ---------------- */
 function triggerDownload(blob: Blob, filename: string) {
@@ -49,6 +49,8 @@ export function MyLibraryPage() {
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
   const [downloading, setDownloading] = useState(false);
   const notify = useNotification();
+  const [viewerOpen, setViewerOpen] = useState(false);
+  const [viewerIndex, setViewerIndex] = useState(0);
 
   /* ---------------- Fetching ---------------- */
   const fetchTabPhotos = async (activeTab: number) => {
@@ -152,6 +154,13 @@ export function MyLibraryPage() {
     }
   };
 
+  const openViewerAt = (photoId: number) => {
+    const idx = photos.findIndex((p) => p.id === photoId);
+    if (idx === -1) return;
+    setViewerIndex(idx);
+    setViewerOpen(true);
+  };
+
   /* ---------------- Render ---------------- */
   return (
     <Box>
@@ -216,7 +225,13 @@ export function MyLibraryPage() {
             return (
               <Grid item xs={12} sm={6} md={4} key={photo.id}>
                 <Card>
-                  <CardMedia component="img" height="200" image={src} />
+                  <CardMedia
+                    component="img"
+                    height="200"
+                    image={src}
+                    onClick={() => openViewerAt(photo.id)}
+                    sx={{ cursor: "pointer" }}
+                  />
                   <CardContent>
                     <FormControlLabel
                       control={
@@ -275,6 +290,22 @@ export function MyLibraryPage() {
           })}
         </Grid>
       )}
+
+      <PhotoViewerModal
+        open={viewerOpen}
+        photos={photos}
+        index={viewerIndex}
+        onClose={() => setViewerOpen(false)}
+        onNavigate={(nextIndex) => {
+          if (!photos.length) return;
+          const normalized = ((nextIndex % photos.length) + photos.length) % photos.length;
+          setViewerIndex(normalized);
+        }}
+        onToggleLike={(photo, next) => handleLike(photo.id, next)}
+        onToggleFavourite={(photo, next) => handleFavourite(photo.id, next)}
+        onDownloadWatermarked={(photo) => handleSingleDownload(photo.id, "watermarked")}
+        onDownloadOriginal={(photo) => handleSingleDownload(photo.id, "original")}
+      />
     </Box>
   );
 }

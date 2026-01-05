@@ -1,23 +1,11 @@
-from celery import shared_task
-''
-from django.contrib.auth import get_user_model
-import numpy as np
+"""Legacy user face-matching Celery tasks.
 
-User = get_user_model()
+This module previously contained Celery tasks for matching user faces to
+photos using a separate PhotoFace model. That logic has been removed in
+favor of on-the-fly face_recognition calls in the API views.
 
-# Placeholder similarity function (cosine similarity)
-def cosine_similarity(a, b):  # This function will be removed
-    a = np.array(a)
-    b = np.array(b)
-    if np.linalg.norm(a) == 0 or np.linalg.norm(b) == 0:
-        return 0.0
-    return float(np.dot(a, b) / (np.linalg.norm(a) * np.linalg.norm(b)))
+The file is intentionally left without any Celery tasks so that
+``app.autodiscover_tasks()`` can safely import it without registering
+obsolete task names like ``core.users.face_tasks.match_user_face_to_photos``.
+"""
 
-@shared_task
-@shared_task
-def match_user_face_to_photos(user_id, threshold=0.75):  # This function will be removed
-    try:
-        # TODO: Implement face matching logic or remove this function if obsolete
-        pass
-    except Exception:
-        pass

@@ -33,7 +33,17 @@ class PhotosOfMeView(generics.ListAPIView):
 		encoding = np.array(user.face_encoding)
 		print(f"User face_encoding (first 5): {encoding[:5]}")
 		matched_photo_ids = []
-		for photo in Photo.objects.all():
+		# Only consider photos visible to this user: all non-private, plus their own private
+		from django.db.models import Q
+		candidate_photos = Photo.objects.filter(
+			Q(visibility__in=[
+				Photo.Visibility.PUBLIC,
+				Photo.Visibility.EVENT_ONLY,
+				Photo.Visibility.ROLE_BASED,
+			])
+			| Q(visibility=Photo.Visibility.PRIVATE, uploaded_by=user)
+		)
+		for photo in candidate_photos:
 			print(f"Processing photo {photo.id}")
 			img_field = photo.image_original
 			if not img_field:
@@ -197,8 +207,16 @@ class PhotoListCreateView(generics.ListCreateAPIView):
 			# Anonymous users: only public photos
 			qs = qs.filter(visibility=Photo.Visibility.PUBLIC)
 		elif user.is_staff or user.is_superuser:
-			# Staff/admin: see all
-			pass
+			# Staff/admin: see all non-private photos from others, plus their own private
+			from django.db.models import Q
+			qs = qs.filter(
+				Q(visibility__in=[
+					Photo.Visibility.PUBLIC,
+					Photo.Visibility.EVENT_ONLY,
+					Photo.Visibility.ROLE_BASED,
+				])
+				| Q(visibility=Photo.Visibility.PRIVATE, uploaded_by=user)
+			)
 		else:
 			# Authenticated users: public, their own private, event_only if event member, role_based if role
 			public = Q(visibility=Photo.Visibility.PUBLIC)
@@ -542,8 +560,18 @@ class MyFavouritesView(generics.ListAPIView):
 	serializer_class = PhotoSerializer
 	permission_classes = [IsAuthenticated]
 	def get_queryset(self):
+		user = self.request.user
+		from django.db.models import Q
 		return (
-			Photo.objects.filter(favourites__user=self.request.user)
+			Photo.objects.filter(favourites__user=user)
+			.filter(
+				Q(visibility__in=[
+					Photo.Visibility.PUBLIC,
+					Photo.Visibility.EVENT_ONLY,
+					Photo.Visibility.ROLE_BASED,
+				])
+				| Q(visibility=Photo.Visibility.PRIVATE, uploaded_by=user)
+			)
 			.order_by("-created_at")
 			.distinct()
 		)
@@ -554,8 +582,18 @@ class MyLikesView(generics.ListAPIView):
 	serializer_class = PhotoSerializer
 	permission_classes = [IsAuthenticated]
 	def get_queryset(self):
+		user = self.request.user
+		from django.db.models import Q
 		return (
-			Photo.objects.filter(likes__user=self.request.user)
+			Photo.objects.filter(likes__user=user)
+			.filter(
+				Q(visibility__in=[
+					Photo.Visibility.PUBLIC,
+					Photo.Visibility.EVENT_ONLY,
+					Photo.Visibility.ROLE_BASED,
+				])
+				| Q(visibility=Photo.Visibility.PRIVATE, uploaded_by=user)
+			)
 			.order_by("-created_at")
 			.distinct()
 		)
@@ -565,7 +603,23 @@ class EventPhotoListView(generics.ListAPIView):
 	permission_classes = [IsAuthenticatedOrReadOnly]
 	def get_queryset(self):
 		event_slug = self.kwargs.get("slug")
-		return Photo.objects.filter(event__slug=event_slug).order_by("-created_at")
+		qs = Photo.objects.filter(event__slug=event_slug)
+		user = self.request.user
+		from django.db.models import Q
+		if not user.is_authenticated:
+			# Guests: never see private photos
+			qs = qs.exclude(visibility=Photo.Visibility.PRIVATE)
+		else:
+			# Authenticated users: see all non-private photos, plus their own private
+			qs = qs.filter(
+				Q(visibility__in=[
+					Photo.Visibility.PUBLIC,
+					Photo.Visibility.EVENT_ONLY,
+					Photo.Visibility.ROLE_BASED,
+				])
+				| Q(visibility=Photo.Visibility.PRIVATE, uploaded_by=user)
+			)
+		return qs.order_by("-created_at")
 
 class PhotoLikeView(APIView):
 	permission_classes = [IsAuthenticated]

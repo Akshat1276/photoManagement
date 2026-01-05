@@ -47,6 +47,8 @@ export function Navbar() {
               <Button color="inherit" component={RouterLink} to="/photos-of-me">
                 Photos of Me
               </Button>
+              {/* Photographer option hidden for now */}
+              {/*
               <Button
                 color="inherit"
                 component={RouterLink}
@@ -54,6 +56,7 @@ export function Navbar() {
               >
                 Photographer
               </Button>
+              */}
             </>
           )}
           {!user ? (
