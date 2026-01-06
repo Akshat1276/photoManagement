@@ -1,6 +1,5 @@
 import { useEffect, useState, ChangeEvent, FormEvent } from "react";
-import { Photo } from "../api/client";
-import { fetchPhotosOfMeRequest, uploadReferenceSelfieRequest } from "../api/client";
+import { Photo, fetchPhotosOfMeRequest, uploadReferenceSelfieRequest, refreshPhotosOfMeRequest } from "../api/client";
 import Box from "@mui/material/Box";
 import Grid from "@mui/material/Grid";
 import Card from "@mui/material/Card";
@@ -18,11 +17,22 @@ export function PhotosOfMePage() {
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [uploadSuccess, setUploadSuccess] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
+  const [refreshMessage, setRefreshMessage] = useState<string | null>(null);
+
+  const loadMatches = async () => {
+    setLoading(true);
+    try {
+      const data = await fetchPhotosOfMeRequest();
+      setPhotos(data);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    fetchPhotosOfMeRequest()
-      .then(setPhotos)
-      .finally(() => setLoading(false));
+    // Initial load uses cached matches only (no heavy scan)
+    void loadMatches();
   }, []);
 
   const handleSelfieChange = (e: ChangeEvent<HTMLInputElement>) => {
@@ -39,11 +49,27 @@ export function PhotosOfMePage() {
     setUploadSuccess(null);
     try {
       await uploadReferenceSelfieRequest(selfie);
-      setUploadSuccess("Selfie uploaded successfully! Matching will run in the background.");
+      setUploadSuccess("Selfie uploaded successfully! Use Refresh to scan photos for matches.");
     } catch (err: any) {
       setUploadError(err?.response?.data?.detail || "Upload failed. Try again.");
     } finally {
       setUploading(false);
+    }
+  };
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    setRefreshMessage(null);
+    try {
+      const result = await refreshPhotosOfMeRequest();
+      await loadMatches();
+      setRefreshMessage(
+        `Processed ${result.processed_photos} new photo(s), found ${result.new_matches} new match(es). Total matches: ${result.total_matches}.`
+      );
+    } catch (err: any) {
+      setRefreshMessage(err?.response?.data?.detail || "Failed to refresh matches.");
+    } finally {
+      setRefreshing(false);
     }
   };
 
@@ -52,6 +78,16 @@ export function PhotosOfMePage() {
       <Typography variant="h4" gutterBottom>
         Photos of Me
       </Typography>
+      <Box sx={{ display: "flex", alignItems: "center", gap: 2, mb: 2 }}>
+        <Button variant="outlined" onClick={handleRefresh} disabled={refreshing}>
+          {refreshing ? "Refreshing..." : "Refresh matches"}
+        </Button>
+        {refreshMessage && (
+          <Typography variant="body2" color="text.secondary">
+            {refreshMessage}
+          </Typography>
+        )}
+      </Box>
       <Box component="form" onSubmit={handleSelfieUpload} sx={{ mb: 3 }}>
         <Typography variant="h6">Upload Reference Selfie</Typography>
         <input

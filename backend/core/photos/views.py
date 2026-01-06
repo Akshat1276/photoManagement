@@ -1,5 +1,5 @@
 import os
-from core.models import Photo
+from core.models import Photo, PhotoUser
 from django.http import FileResponse, Http404, StreamingHttpResponse
 from django.conf import settings
 import zipfile
@@ -16,25 +16,48 @@ from rest_framework.permissions import IsAuthenticated
 # ...existing code...
 
 
-# Proper DRF view for 'Photos of Me'
+from django.db.models import Q
+
+
+# Proper DRF view for 'Photos of Me' using cached matches
 class PhotosOfMeView(generics.ListAPIView):
 	serializer_class = PhotoSerializer
 	permission_classes = [IsAuthenticated]
 
 	def get_queryset(self):
-		print("PhotosOfMeView: started")
 		user = self.request.user
-		if not hasattr(user, "face_encoding") or not user.face_encoding:
-			print("No face encoding")
+		if not user.is_authenticated:
 			return Photo.objects.none()
+		# Require a stored reference selfie
+		if not getattr(user, "face_encoding", None):
+			return Photo.objects.none()
+		visible_photos = Photo.objects.filter(
+			Q(visibility__in=[
+				Photo.Visibility.PUBLIC,
+				Photo.Visibility.EVENT_ONLY,
+				Photo.Visibility.ROLE_BASED,
+			])
+			| Q(visibility=Photo.Visibility.PRIVATE, uploaded_by=user)
+		)
+		# Restrict to photos where this user has been detected (PhotoUser)
+		qs = visible_photos.filter(detected_users__user=user).distinct()
+		return qs.order_by("-created_at")
+
+
+class RefreshPhotosOfMeView(APIView):
+	permission_classes = [IsAuthenticated]
+
+	def post(self, request):
+		user = request.user
+		if not getattr(user, "face_encoding", None):
+			return Response({"detail": "No reference selfie found. Please upload one first."}, status=400)
 		import numpy as np
 		import face_recognition
-		from PIL import Image
+		from PIL import Image, ExifTags
+		import io
+		from django.utils import timezone
 		encoding = np.array(user.face_encoding)
-		print(f"User face_encoding (first 5): {encoding[:5]}")
-		matched_photo_ids = []
-		# Only consider photos visible to this user: all non-private, plus their own private
-		from django.db.models import Q
+		last_scanned = getattr(user, "photos_of_me_last_scanned_at", None)
 		candidate_photos = Photo.objects.filter(
 			Q(visibility__in=[
 				Photo.Visibility.PUBLIC,
@@ -43,28 +66,21 @@ class PhotosOfMeView(generics.ListAPIView):
 			])
 			| Q(visibility=Photo.Visibility.PRIVATE, uploaded_by=user)
 		)
-		for photo in candidate_photos:
-			print(f"Processing photo {photo.id}")
+		if last_scanned:
+			candidate_photos = candidate_photos.filter(created_at__gt=last_scanned)
+		processed = 0
+		new_matches = 0
+		for photo in candidate_photos.iterator():
 			img_field = photo.image_original
 			if not img_field:
-				print(f"Photo {photo.id} has no image.")
 				continue
 			try:
-				img_field.open('rb')
-				img_field.seek(0)
-				print(f"Photo {photo.id}: name={img_field.name}, size={getattr(img_field, 'size', 'unknown')}")
-				first_bytes = img_field.read(10)
-				print(f"Photo {photo.id}: first 10 bytes: {first_bytes}")
-				img_field.seek(0)
-				import io
-				from PIL import Image, ExifTags
-				# Read all bytes from the image field
+				img_field.open("rb")
 				image_bytes = img_field.read()
 				pil_image = Image.open(io.BytesIO(image_bytes))
-				# Handle EXIF orientation
 				try:
 					for orientation in ExifTags.TAGS.keys():
-						if ExifTags.TAGS[orientation] == 'Orientation':
+						if ExifTags.TAGS[orientation] == "Orientation":
 							break
 					exif = pil_image._getexif()
 					if exif is not None:
@@ -75,27 +91,41 @@ class PhotosOfMeView(generics.ListAPIView):
 							pil_image = pil_image.rotate(270, expand=True)
 						elif orientation_value == 8:
 							pil_image = pil_image.rotate(90, expand=True)
-				except Exception as ex:
-					print(f"[DEBUG] EXIF orientation handling failed: {ex}")
-				pil_image = pil_image.convert('RGB')
-				import numpy as np
+				except Exception:
+					pass
+				pil_image = pil_image.convert("RGB")
 				img_np = np.array(pil_image)
-			except Exception as e:
-				import traceback
-				print(f"Error loading photo {photo.id}: {e}")
-				traceback.print_exc()
+				encodings = face_recognition.face_encodings(img_np)
+			except Exception:
 				continue
-			encodings = face_recognition.face_encodings(img_np)
-			print(f"Photo {photo.id}: found {len(encodings)} faces")
+			matched_here = False
 			for enc in encodings:
-				print(f"Photo {photo.id}: encoding (first 5): {enc[:5]}")
 				match = face_recognition.compare_faces([encoding], enc, tolerance=0.6)[0]
-				print(f"Photo {photo.id}: match={match}")
 				if match:
-					matched_photo_ids.append(photo.id)
+					# distance as a simple confidence metric
+					from face_recognition import face_distance
+					distance = float(face_distance([encoding], enc)[0])
+					PhotoUser.objects.update_or_create(
+						photo=photo,
+						user=user,
+						defaults={"confidence_score": distance},
+					)
+					new_matches += 1
+					matched_here = True
 					break
-		print(f"PhotosOfMeView: finished, matched {len(matched_photo_ids)} photos")
-		return Photo.objects.filter(id__in=matched_photo_ids).order_by("-created_at")
+			if matched_here:
+				processed += 1
+		user.photos_of_me_last_scanned_at = timezone.now()
+		user.save(update_fields=["photos_of_me_last_scanned_at"])
+		total_matches = Photo.objects.filter(detected_users__user=user).distinct().count()
+		return Response(
+			{
+				"detail": "Photos of Me refreshed.",
+				"processed_photos": processed,
+				"new_matches": new_matches,
+				"total_matches": total_matches,
+			}
+		)
 
 
 class PhotoDownloadView(APIView):

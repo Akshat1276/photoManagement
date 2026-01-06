@@ -12,6 +12,18 @@ export async function fetchPhotosOfMeRequest(): Promise<Photo[]> {
   const res = await api.get<Photo[]>("/photos/photos-of-me/");
   return res.data;
 }
+
+export interface PhotosOfMeRefreshResult {
+  detail: string;
+  processed_photos: number;
+  new_matches: number;
+  total_matches: number;
+}
+
+export async function refreshPhotosOfMeRequest(): Promise<PhotosOfMeRefreshResult> {
+  const res = await api.post<PhotosOfMeRefreshResult>("/photos/photos-of-me/refresh/");
+  return res.data;
+}
 // Download a single photo (returns a Blob)
 export async function downloadPhoto(photoId: number, variant: "original" | "watermarked" = "watermarked"): Promise<Blob> {
   const res = await api.get(`/photos/${photoId}/download/?variant=${variant}`, {

@@ -47,6 +47,7 @@ class User(AbstractUser):
 	created_at = models.DateTimeField(auto_now_add=True)
 	roles = models.ManyToManyField('Role', blank=True, related_name='users')
 	face_encoding = models.JSONField(null=True, blank=True)
+	photos_of_me_last_scanned_at = models.DateTimeField(null=True, blank=True)
 
 	USERNAME_FIELD = "email"
 	REQUIRED_FIELDS: list[str] = []

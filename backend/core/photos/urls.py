@@ -14,6 +14,7 @@ from core.photos.views import (
 	PhotoDownloadView,
 	PhotoDownloadMultipleView,
 	PhotosOfMeView,
+	RefreshPhotosOfMeView,
 )
 
 urlpatterns = [
@@ -24,6 +25,7 @@ urlpatterns = [
 	path("my-favourites/", MyFavouritesView.as_view(), name="photo-my-favourites"),
 	path("my-likes/", MyLikesView.as_view(), name="photo-my-likes"),
 	path("photos-of-me/", PhotosOfMeView.as_view(), name="photos-of-me"),
+	path("photos-of-me/refresh/", RefreshPhotosOfMeView.as_view(), name="photos-of-me-refresh"),
 	path("<int:pk>/", PhotoDetailView.as_view(), name="photo-detail"),
 	path("<int:pk>/like/", PhotoLikeView.as_view(), name="photo-like"),
 	path("<int:pk>/favourite/", PhotoFavouriteView.as_view(), name="photo-favourite"),
