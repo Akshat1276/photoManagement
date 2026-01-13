@@ -9,7 +9,15 @@ export async function uploadReferenceSelfieRequest(file: File): Promise<any> {
 }
 // Fetch photos where the current user was detected (Photos of Me)
 export async function fetchPhotosOfMeRequest(): Promise<Photo[]> {
-  const res = await api.get<Photo[]>("/photos/photos-of-me/");
+  // Convenience helper for first page only
+  const res = await api.get<PaginatedResponse<Photo>>("/photos/photos-of-me/");
+  return res.data.results;
+}
+
+export async function fetchPhotosOfMePageRequest(
+  url: string = "/photos/photos-of-me/",
+): Promise<PaginatedResponse<Photo>> {
+  const res = await api.get<PaginatedResponse<Photo>>(url);
   return res.data;
 }
 
@@ -45,13 +53,28 @@ export async function downloadMultiplePhotos(photoIds: number[], variant: "origi
 
 // Fetch photos liked by the current user
 export async function fetchMyLikesRequest(): Promise<Photo[]> {
-  const res = await api.get<Photo[]>("/photos/my-likes/");
+  // First page helper
+  const res = await api.get<PaginatedResponse<Photo>>("/photos/my-likes/");
+  return res.data.results;
+}
+
+export async function fetchMyLikesPageRequest(
+  url: string = "/photos/my-likes/",
+): Promise<PaginatedResponse<Photo>> {
+  const res = await api.get<PaginatedResponse<Photo>>(url);
   return res.data;
 }
 
 // Fetch photos favourited by the current user
 export async function fetchMyFavouritesRequest(): Promise<Photo[]> {
-  const res = await api.get<Photo[]>("/photos/my-favourites/");
+  const res = await api.get<PaginatedResponse<Photo>>("/photos/my-favourites/");
+  return res.data.results;
+}
+
+export async function fetchMyFavouritesPageRequest(
+  url: string = "/photos/my-favourites/",
+): Promise<PaginatedResponse<Photo>> {
+  const res = await api.get<PaginatedResponse<Photo>>(url);
   return res.data;
 }
 import axios from "axios";
@@ -187,12 +210,31 @@ export async function fetchEventBySlugRequest(slug: string): Promise<Event> {
 }
 
 export async function fetchEventPhotosRequest(slug: string): Promise<Photo[]> {
-  const res = await api.get<Photo[]>(`/events/${slug}/photos/`);
+  // Convenience helper for first page only
+  const res = await api.get<PaginatedResponse<Photo>>(
+    `/events/${slug}/photos/`,
+  );
+  return res.data.results;
+}
+
+export async function fetchEventPhotosPageRequest(
+  slug: string,
+  url?: string,
+): Promise<PaginatedResponse<Photo>> {
+  const finalUrl = url ?? `/events/${slug}/photos/`;
+  const res = await api.get<PaginatedResponse<Photo>>(finalUrl);
   return res.data;
 }
 
 export async function fetchMyUploadsRequest(): Promise<Photo[]> {
-  const res = await api.get<Photo[]>("/photos/my-uploads/");
+  const res = await api.get<PaginatedResponse<Photo>>("/photos/my-uploads/");
+  return res.data.results;
+}
+
+export async function fetchMyUploadsPageRequest(
+  url: string = "/photos/my-uploads/",
+): Promise<PaginatedResponse<Photo>> {
+  const res = await api.get<PaginatedResponse<Photo>>(url);
   return res.data;
 }
 

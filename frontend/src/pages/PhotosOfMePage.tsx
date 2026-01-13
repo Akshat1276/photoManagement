@@ -1,5 +1,5 @@
-import { useEffect, useState, ChangeEvent, FormEvent } from "react";
-import { Photo, fetchPhotosOfMeRequest, uploadReferenceSelfieRequest, refreshPhotosOfMeRequest } from "../api/client";
+import { useEffect, useState, useRef, ChangeEvent, FormEvent } from "react";
+import { Photo, fetchPhotosOfMePageRequest, uploadReferenceSelfieRequest, refreshPhotosOfMeRequest } from "../api/client";
 import Box from "@mui/material/Box";
 import Grid from "@mui/material/Grid";
 import Card from "@mui/material/Card";
@@ -13,6 +13,8 @@ import Alert from "@mui/material/Alert";
 export function PhotosOfMePage() {
   const [photos, setPhotos] = useState<Photo[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [nextUrl, setNextUrl] = useState<string | null>(null);
   const [selfie, setSelfie] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
@@ -20,11 +22,14 @@ export function PhotosOfMePage() {
   const [refreshing, setRefreshing] = useState(false);
   const [refreshMessage, setRefreshMessage] = useState<string | null>(null);
 
+  const loadMoreRef = useRef<HTMLDivElement | null>(null);
+
   const loadMatches = async () => {
     setLoading(true);
     try {
-      const data = await fetchPhotosOfMeRequest();
-      setPhotos(data);
+      const page = await fetchPhotosOfMePageRequest();
+      setPhotos(page.results);
+      setNextUrl(page.next);
     } finally {
       setLoading(false);
     }
@@ -34,6 +39,25 @@ export function PhotosOfMePage() {
     // Initial load uses cached matches only (no heavy scan)
     void loadMatches();
   }, []);
+
+  // Infinite scroll for cached matches
+  useEffect(() => {
+    const el = loadMoreRef.current;
+    if (!el) return;
+    const observer = new IntersectionObserver((entries) => {
+      const entry = entries[0];
+      if (!entry.isIntersecting || !nextUrl || loadingMore) return;
+      setLoadingMore(true);
+      fetchPhotosOfMePageRequest(nextUrl)
+        .then((page) => {
+          setPhotos((prev) => [...prev, ...page.results]);
+          setNextUrl(page.next);
+        })
+        .finally(() => setLoadingMore(false));
+    });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [nextUrl, loadingMore]);
 
   const handleSelfieChange = (e: ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
@@ -116,6 +140,7 @@ export function PhotosOfMePage() {
               <Card>
                 <CardMedia
                   component="img"
+                  loading="lazy"
                   height="200"
                   image={photo.image_thumbnail || photo.image_watermarked || photo.image_original}
                   alt={"Photo #" + photo.id}
@@ -131,6 +156,14 @@ export function PhotosOfMePage() {
               </Card>
             </Grid>
           ))}
+          {/* Sentinel for infinite scroll */}
+          <Grid item xs={12} ref={loadMoreRef}>
+            {loadingMore && (
+              <Typography align="center" variant="body2" sx={{ my: 2 }}>
+                Loading more matches...
+              </Typography>
+            )}
+          </Grid>
         </Grid>
       )}
     </Box>

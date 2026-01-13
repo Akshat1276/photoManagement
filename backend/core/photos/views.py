@@ -11,6 +11,7 @@ from rest_framework.permissions import IsAuthenticatedOrReadOnly
 from rest_framework import generics
 from core.photos.serializers import PhotoSerializer
 from rest_framework.permissions import IsAuthenticated
+from core.common.pagination import PhotoPagination
 
 
 # ...existing code...
@@ -23,6 +24,7 @@ from django.db.models import Q
 class PhotosOfMeView(generics.ListAPIView):
 	serializer_class = PhotoSerializer
 	permission_classes = [IsAuthenticated]
+	pagination_class = PhotoPagination
 
 	def get_queryset(self):
 		user = self.request.user
@@ -202,6 +204,7 @@ from rest_framework.permissions import (
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from core.common.permissions import IsOwnerOrReadOnly, IsPhotographerOrAbove
+from core.common.pagination import PhotoPagination
 from core.tasks import process_photo
 from core.models import (
 	Comment,
@@ -222,6 +225,7 @@ class PhotoListCreateView(generics.ListCreateAPIView):
 	queryset = Photo.objects.all()
 	serializer_class = PhotoSerializer
 	permission_classes = [IsAuthenticatedOrReadOnly, IsPhotographerOrAbove]
+	pagination_class = PhotoPagination
 
 	def get_permissions(self):
 		if self.request.method in SAFE_METHODS:
@@ -582,6 +586,7 @@ class PhotoDetailView(generics.RetrieveUpdateDestroyAPIView):
 class MyUploadsView(generics.ListAPIView):
 	serializer_class = PhotoSerializer
 	permission_classes = [IsAuthenticated]
+	pagination_class = PhotoPagination
 	def get_queryset(self):
 		return Photo.objects.filter(uploaded_by=self.request.user).order_by("-created_at")
 
@@ -589,6 +594,7 @@ class MyUploadsView(generics.ListAPIView):
 class MyFavouritesView(generics.ListAPIView):
 	serializer_class = PhotoSerializer
 	permission_classes = [IsAuthenticated]
+	pagination_class = PhotoPagination
 	def get_queryset(self):
 		user = self.request.user
 		from django.db.models import Q
@@ -611,6 +617,7 @@ class MyFavouritesView(generics.ListAPIView):
 class MyLikesView(generics.ListAPIView):
 	serializer_class = PhotoSerializer
 	permission_classes = [IsAuthenticated]
+	pagination_class = PhotoPagination
 	def get_queryset(self):
 		user = self.request.user
 		from django.db.models import Q
@@ -631,6 +638,7 @@ class MyLikesView(generics.ListAPIView):
 class EventPhotoListView(generics.ListAPIView):
 	serializer_class = PhotoSerializer
 	permission_classes = [IsAuthenticatedOrReadOnly]
+	pagination_class = PhotoPagination
 	def get_queryset(self):
 		event_slug = self.kwargs.get("slug")
 		qs = Photo.objects.filter(event__slug=event_slug)

@@ -6,7 +6,7 @@ import {
   downloadMultiplePhotos,
   batchUploadPhotosRequest,
   fetchEventBySlugRequest,
-  fetchEventPhotosRequest,
+  fetchEventPhotosPageRequest,
   likePhotoRequest,
   unlikePhotoRequest,
   favouritePhotoRequest,
@@ -16,7 +16,7 @@ import {
   type Photo,
 } from "../api/client";
 
-import { useEffect, useState, ChangeEvent, FormEvent } from "react";
+import { useEffect, useState, useRef, ChangeEvent, FormEvent } from "react";
 import { useNotification } from "../components/NotificationProvider";
 import { useParams } from "react-router-dom";
 import {
@@ -82,6 +82,8 @@ export function EventGalleryPage() {
   const [event, setEvent] = useState<Event & { coordinators?: string[]; photographers?: string[] } | null>(null);
   const [photos, setPhotos] = useState<Photo[]>([]);
   const [loading, setLoading] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [nextUrl, setNextUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const [uploading, setUploading] = useState(false);
@@ -94,6 +96,8 @@ export function EventGalleryPage() {
   const [viewerOpen, setViewerOpen] = useState(false);
   const [viewerIndex, setViewerIndex] = useState(0);
 
+  const loadMoreRef = useRef<HTMLDivElement | null>(null);
+
   /* ---------------- Initial Load ---------------- */
   useEffect(() => {
     if (!slug) return;
@@ -101,13 +105,14 @@ export function EventGalleryPage() {
     const load = async () => {
       try {
         setLoading(true);
-        const [eventData, photosData] = await Promise.all([
+        const [eventData, photosPage] = await Promise.all([
           fetchEventBySlugRequest(slug),
-          fetchEventPhotosRequest(slug),
+          fetchEventPhotosPageRequest(slug),
         ]);
         // Assume backend returns coordinators/photographers as emails array
         setEvent(eventData);
-        setPhotos(photosData);
+        setPhotos(photosPage.results);
+        setNextUrl(photosPage.next);
       } catch (err: any) {
         setError(err.response?.data?.detail || "Failed to load event or photos.");
       } finally {
@@ -117,6 +122,28 @@ export function EventGalleryPage() {
 
     load();
   }, [slug]);
+
+  // Infinite scroll: observe sentinel at bottom of grid
+  useEffect(() => {
+    const el = loadMoreRef.current;
+    if (!el) return;
+    const observer = new IntersectionObserver((entries) => {
+      const entry = entries[0];
+      if (!entry.isIntersecting) return;
+      if (!slug || !nextUrl || loadingMore) return;
+
+      setLoadingMore(true);
+      fetchEventPhotosPageRequest(slug, nextUrl)
+        .then((page) => {
+          setPhotos((prev) => [...prev, ...page.results]);
+          setNextUrl(page.next);
+        })
+        .finally(() => setLoadingMore(false));
+    });
+
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [slug, nextUrl, loadingMore]);
 
   /* ---------------- Upload ---------------- */
   const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
@@ -165,8 +192,6 @@ export function EventGalleryPage() {
       : await unlikePhotoRequest(photoId);
 
     notify(checked ? "Photo liked" : "Photo unliked");
-
-    if (slug) setPhotos(await fetchEventPhotosRequest(slug));
   };
 
   const handleFavourite = async (photoId: number, checked: boolean) => {
@@ -189,8 +214,6 @@ export function EventGalleryPage() {
       : await unfavouritePhotoRequest(photoId);
 
     notify(checked ? "Photo favourited" : "Photo unfavourited");
-
-    if (slug) setPhotos(await fetchEventPhotosRequest(slug));
   };
 
   const openViewerAt = (photoId: number) => {
@@ -363,6 +386,7 @@ export function EventGalleryPage() {
                 <Card>
                   <CardMedia
                     component="img"
+                    loading="lazy"
                     height="200"
                     image={src}
                     onClick={() => openViewerAt(photo.id)}
@@ -431,6 +455,14 @@ export function EventGalleryPage() {
               </Grid>
             );
           })}
+          {/* Sentinel for infinite scroll */}
+          <Grid item xs={12} ref={loadMoreRef}>
+            {loadingMore && (
+              <Typography align="center" variant="body2" sx={{ my: 2 }}>
+                Loading more photos...
+              </Typography>
+            )}
+          </Grid>
         </Grid>
       )}
 

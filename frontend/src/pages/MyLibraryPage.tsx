@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useNotification } from "../components/NotificationProvider";
 import Box from "@mui/material/Box";
 import Tabs from "@mui/material/Tabs";
@@ -23,9 +23,9 @@ import {
   photoBatchOperationsRequest,
   downloadPhoto,
   downloadMultiplePhotos,
-  fetchMyUploadsRequest,
-  fetchMyLikesRequest,
-  fetchMyFavouritesRequest,
+  fetchMyUploadsPageRequest,
+  fetchMyLikesPageRequest,
+  fetchMyFavouritesPageRequest,
   type Photo,
 } from "../api/client";
 import { PhotoViewerModal } from "../components/PhotoViewerModal";
@@ -46,27 +46,68 @@ function triggerDownload(blob: Blob, filename: string) {
 export function MyLibraryPage() {
   const [tab, setTab] = useState(0);
   const [photos, setPhotos] = useState<Photo[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [nextUrl, setNextUrl] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
   const [downloading, setDownloading] = useState(false);
   const notify = useNotification();
   const [viewerOpen, setViewerOpen] = useState(false);
   const [viewerIndex, setViewerIndex] = useState(0);
 
+  const loadMoreRef = useRef<HTMLDivElement | null>(null);
+
   /* ---------------- Fetching ---------------- */
-  const fetchTabPhotos = async (activeTab: number) => {
-    if (activeTab === 0) setPhotos(await fetchMyUploadsRequest());
-    if (activeTab === 1) setPhotos(await fetchMyLikesRequest());
-    if (activeTab === 2) setPhotos(await fetchMyFavouritesRequest());
+  const loadInitialForTab = async (activeTab: number) => {
+    setLoading(true);
+    setPhotos([]);
+    setNextUrl(null);
+    try {
+      if (activeTab === 0) {
+        const page = await fetchMyUploadsPageRequest();
+        setPhotos(page.results);
+        setNextUrl(page.next);
+      } else if (activeTab === 1) {
+        const page = await fetchMyLikesPageRequest();
+        setPhotos(page.results);
+        setNextUrl(page.next);
+      } else if (activeTab === 2) {
+        const page = await fetchMyFavouritesPageRequest();
+        setPhotos(page.results);
+        setNextUrl(page.next);
+      }
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => {
-    fetchTabPhotos(tab);
+    void loadInitialForTab(tab);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tab]);
 
-  const refetchCurrentTab = async () => {
-    await fetchTabPhotos(tab);
-  };
+  // Infinite scroll per tab
+  useEffect(() => {
+    const el = loadMoreRef.current;
+    if (!el) return;
+    const observer = new IntersectionObserver((entries) => {
+      const entry = entries[0];
+      if (!entry.isIntersecting || !nextUrl || loadingMore) return;
+      setLoadingMore(true);
+      let fetchPage: (url: string) => Promise<any>;
+      if (tab === 0) fetchPage = fetchMyUploadsPageRequest;
+      else if (tab === 1) fetchPage = fetchMyLikesPageRequest;
+      else fetchPage = fetchMyFavouritesPageRequest;
+      fetchPage(nextUrl)
+        .then((page) => {
+          setPhotos((prev) => [...prev, ...page.results]);
+          setNextUrl(page.next);
+        })
+        .finally(() => setLoadingMore(false));
+    });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [tab, nextUrl, loadingMore]);
 
   /* ---------------- Selection ---------------- */
   const toggleSelected = (id: number) => {
@@ -96,7 +137,6 @@ export function MyLibraryPage() {
       : await unlikePhotoRequest(photoId);
 
     notify(checked ? "Photo liked" : "Photo unliked");
-    await refetchCurrentTab();
   };
 
   const handleFavourite = async (photoId: number, checked: boolean) => {
@@ -119,7 +159,6 @@ export function MyLibraryPage() {
       : await unfavouritePhotoRequest(photoId);
 
     notify(checked ? "Photo favourited" : "Photo unfavourited");
-    await refetchCurrentTab();
   };
 
   /* ---------------- Downloads ---------------- */
@@ -227,6 +266,7 @@ export function MyLibraryPage() {
                 <Card>
                   <CardMedia
                     component="img"
+                    loading="lazy"
                     height="200"
                     image={src}
                     onClick={() => openViewerAt(photo.id)}
@@ -288,6 +328,14 @@ export function MyLibraryPage() {
               </Grid>
             );
           })}
+          {/* Sentinel for infinite scroll */}
+          <Grid item xs={12} ref={loadMoreRef}>
+            {(loading || loadingMore) && (
+              <Typography align="center" variant="body2" sx={{ my: 2 }}>
+                Loading photos...
+              </Typography>
+            )}
+          </Grid>
         </Grid>
       )}
 

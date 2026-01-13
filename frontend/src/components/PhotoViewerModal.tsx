@@ -84,6 +84,7 @@ export function PhotoViewerModal({
               position: "relative",
             }}
           >
+              loading="lazy"
             <img
               src={imageSrc}
               alt="Event"
