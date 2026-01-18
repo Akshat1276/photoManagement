@@ -140,6 +140,7 @@ export interface Photo {
   event: number;
   uploaded_by: number;
   uploaded_by_email: string;
+  uploaded_by_name: string;
   image_original: string;
   image_thumbnail: string | null;
   image_watermarked: string | null;

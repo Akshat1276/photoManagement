@@ -219,6 +219,11 @@ from core.models import (
 )
 
 from core.photos.serializers import CommentSerializer, PhotoSerializer
+from core.photos.services import (
+	broadcast_comment_created,
+	broadcast_comment_deleted,
+	broadcast_comment_updated,
+)
 from core.notifications.services import send_email_notification
 
 class PhotoListCreateView(generics.ListCreateAPIView):
@@ -732,6 +737,7 @@ class PhotoCommentListCreateView(generics.ListCreateAPIView):
 	def perform_create(self, serializer):
 		photo = generics.get_object_or_404(Photo, pk=self.kwargs.get("pk"))
 		comment = serializer.save(user=self.request.user, photo=photo)
+		broadcast_comment_created(comment)
 		if photo.uploaded_by != self.request.user:
 			notification = Notification.objects.create(
 				type="photo_comment",
@@ -751,3 +757,13 @@ class CommentDetailView(generics.RetrieveUpdateDestroyAPIView):
 	queryset = Comment.objects.all().order_by("-created_at")
 	serializer_class = CommentSerializer
 	permission_classes = [IsOwnerOrReadOnly]
+
+	def perform_update(self, serializer):
+		comment = serializer.save()
+		broadcast_comment_updated(comment)
+
+	def perform_destroy(self, instance):
+		photo_id = instance.photo_id
+		comment_id = instance.id
+		super().perform_destroy(instance)
+		broadcast_comment_deleted(photo_id, comment_id)

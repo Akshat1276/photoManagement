@@ -406,7 +406,7 @@ export function EventGalleryPage() {
                     )}
 
                     <Typography variant="body2">
-                      Uploaded by {photo.uploaded_by_email}
+                      Uploaded by {photo.uploaded_by_name || photo.uploaded_by_email}
                     </Typography>
 
                     <Typography variant="body2">

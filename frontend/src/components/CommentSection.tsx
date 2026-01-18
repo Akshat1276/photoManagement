@@ -15,6 +15,7 @@ import {
 import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
 import {
+	BACKEND_URL,
 	createPhotoCommentRequest,
 	deletePhotoCommentRequest,
 	fetchPhotoCommentsRequest,
@@ -42,6 +43,7 @@ export function CommentSection({ photoId }: CommentSectionProps) {
 	const [editingId, setEditingId] = useState<number | null>(null);
 	const [editingContent, setEditingContent] = useState("");
 	const [editingSaving, setEditingSaving] = useState(false);
+	const [socketError, setSocketError] = useState<string | null>(null);
 
 	useEffect(() => {
 		const load = async () => {
@@ -58,6 +60,61 @@ export function CommentSection({ photoId }: CommentSectionProps) {
 		};
 
 		load();
+	}, [photoId]);
+
+	// Realtime updates via WebSocket (Django Channels)
+	useEffect(() => {
+		if (!photoId) return;
+
+		setSocketError(null);
+
+		const wsScheme = BACKEND_URL.startsWith("https") ? "wss" : "ws";
+		const base = BACKEND_URL.replace(/^http/, wsScheme).replace(/\/$/, "");
+		const wsUrl = `${base}/ws/photos/${photoId}/comments/`;
+		let closedByEffect = false;
+		const socket = new WebSocket(wsUrl);
+
+		socket.onmessage = (event) => {
+			try {
+				const data = JSON.parse(event.data);
+				const action = data?.action as string | undefined;
+				const comment = data?.comment as PhotoComment | { id: number } | undefined;
+				if (!action || !comment) return;
+
+				if (action === "created" || action === "updated") {
+					const fullComment = comment as PhotoComment;
+					setComments((prev) => {
+						const exists = prev.some((c) => c.id === fullComment.id);
+						if (exists && action === "created") {
+							return prev;
+						}
+						if (exists && action === "updated") {
+							return prev.map((c) => (c.id === fullComment.id ? fullComment : c));
+						}
+						// New comment: prepend to keep newest-first order
+						return [fullComment, ...prev];
+					});
+				} else if (action === "deleted") {
+					const id = (comment as { id: number }).id;
+					if (typeof id === "number") {
+						setComments((prev) => prev.filter((c) => c.id !== id));
+					}
+				}
+			} catch (e) {
+				// Ignore malformed messages
+			}
+		};
+
+		socket.onerror = () => {
+			if (!closedByEffect) {
+				setSocketError("Live updates unavailable (websocket error).");
+			}
+		};
+
+		return () => {
+			closedByEffect = true;
+			socket.close();
+		};
 	}, [photoId]);
 
 	const canManageComment = (comment: PhotoComment) => {
@@ -78,7 +135,11 @@ export function CommentSection({ photoId }: CommentSectionProps) {
 			const created = await createPhotoCommentRequest(photoId, {
 				content: newComment.trim(),
 			});
-			setComments((prev) => [created, ...prev]);
+			setComments((prev) => {
+				const exists = prev.some((c) => c.id === created.id);
+				if (exists) return prev;
+				return [created, ...prev];
+			});
 			setNewComment("");
 		} catch (err: any) {
 			notify(err.response?.data?.detail || "Failed to post comment.");
@@ -186,6 +247,10 @@ export function CommentSection({ photoId }: CommentSectionProps) {
 				) : error ? (
 					<Typography color="error" mt={2}>
 						{error}
+					</Typography>
+				) : socketError ? (
+					<Typography color="warning.main" mt={1}>
+						{socketError}
 					</Typography>
 				) : comments.length === 0 ? (
 					<Box mt={2}>

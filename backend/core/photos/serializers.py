@@ -5,6 +5,9 @@ class PhotoSerializer(serializers.ModelSerializer):
 	uploaded_by_email = serializers.EmailField(
 		source="uploaded_by.email", read_only=True
 	)
+	uploaded_by_name = serializers.CharField(
+		source="uploaded_by.profile.full_name", read_only=True
+	)
 	likes_count = serializers.IntegerField(source="likes.count", read_only=True)
 	favourites_count = serializers.IntegerField(
 		source="favourites.count", read_only=True
@@ -39,6 +42,7 @@ class PhotoSerializer(serializers.ModelSerializer):
 			"event",
 			"uploaded_by",
 			"uploaded_by_email",
+			"uploaded_by_name",
 			"image_original",
 			"image_thumbnail",
 			"image_watermarked",

@@ -147,8 +147,8 @@ export function PhotosOfMePage() {
                 />
                 <CardContent>
                   <Typography variant="body2" color="text.secondary">
-                    Uploaded by: {photo.uploaded_by_email}
-                  </Typography>
+          Uploaded by: {photo.uploaded_by_name || photo.uploaded_by_email}
+          </Typography>
                   <Typography variant="caption" color="text.secondary">
                     {new Date(photo.created_at).toLocaleString()}
                   </Typography>

@@ -151,8 +151,8 @@ export function PhotoViewerModal({
             >
               <Box>
                 <Typography id="photo-viewer-title" variant="subtitle1" fontWeight={600}>
-                  {photo.uploaded_by_email}
-                </Typography>
+          {photo.uploaded_by_name || photo.uploaded_by_email}
+        </Typography>
                 <Typography variant="caption" color="text.secondary">
                   {createdAt}
                 </Typography>

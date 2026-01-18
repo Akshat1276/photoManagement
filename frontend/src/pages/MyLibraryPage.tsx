@@ -283,7 +283,7 @@ export function MyLibraryPage() {
                       label="Select"
                     />
                     <Typography variant="body2">
-                      Uploaded by {photo.uploaded_by_email}
+                      Uploaded by {photo.uploaded_by_name || photo.uploaded_by_email}
                     </Typography>
                     <Typography variant="body2">
                       Likes: {photo.likes_count} · Favourites:{" "}
