@@ -162,6 +162,7 @@ export interface PhotoComment {
   photo: number;
   user: number;
   user_email: string;
+  user_name: string;
   parent_comment: number | null;
   content: string;
   created_at: string;

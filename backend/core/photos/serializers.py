@@ -73,6 +73,9 @@ class PhotoSerializer(serializers.ModelSerializer):
 
 class CommentSerializer(serializers.ModelSerializer):
 	user_email = serializers.EmailField(source="user.email", read_only=True)
+	user_name = serializers.CharField(
+		source="user.profile.full_name", read_only=True
+	)
 	class Meta:
 		model = Comment
 		fields = [
@@ -80,6 +83,7 @@ class CommentSerializer(serializers.ModelSerializer):
 			"photo",
 			"user",
 			"user_email",
+			"user_name",
 			"parent_comment",
 			"content",
 			"created_at",
@@ -89,5 +93,6 @@ class CommentSerializer(serializers.ModelSerializer):
 			"photo",
 			"user",
 			"user_email",
+			"user_name",
 			"created_at",
 		]

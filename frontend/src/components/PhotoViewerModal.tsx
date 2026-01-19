@@ -11,10 +11,10 @@ import {
 import CloseIcon from "@mui/icons-material/Close";
 import ArrowBackIosNewIcon from "@mui/icons-material/ArrowBackIosNew";
 import ArrowForwardIosIcon from "@mui/icons-material/ArrowForwardIos";
+import ThumbUpOffAltIcon from "@mui/icons-material/ThumbUpOffAlt";
+import ThumbUpAltIcon from "@mui/icons-material/ThumbUpAlt";
 import FavoriteBorderIcon from "@mui/icons-material/FavoriteBorder";
 import FavoriteIcon from "@mui/icons-material/Favorite";
-import BookmarkBorderIcon from "@mui/icons-material/BookmarkBorder";
-import BookmarkIcon from "@mui/icons-material/Bookmark";
 import DownloadIcon from "@mui/icons-material/Download";
 import { CommentSection } from "./CommentSection";
 import { Photo } from "../api/client";
@@ -72,11 +72,15 @@ export function PhotoViewerModal({
       aria-labelledby="photo-viewer-title"
     >
       <DialogContent sx={{ p: 0 }}>
-        <Box display="flex" height={{ xs: "auto", md: "80vh" }}>
+		<Box
+			display="flex"
+			flexDirection={{ xs: "column", md: "row" }}
+			height={{ xs: "auto", md: "80vh" }}
+		>
           {/* Image area */}
           <Box
             sx={{
-              flex: 2,
+				flex: { xs: "0 0 auto", md: 2 },
               bgcolor: "black",
               display: "flex",
               alignItems: "center",
@@ -84,7 +88,7 @@ export function PhotoViewerModal({
               position: "relative",
             }}
           >
-              loading="lazy"
+              {/* loading="lazy" */}
             <img
               src={imageSrc}
               alt="Event"
@@ -175,9 +179,9 @@ export function PhotoViewerModal({
                 onClick={() => onToggleLike(photo, !photo.liked_by_user)}
               >
                 {photo.liked_by_user ? (
-                  <FavoriteIcon color="error" />
+                  <ThumbUpAltIcon color="primary" />
                 ) : (
-                  <FavoriteBorderIcon />
+                  <ThumbUpOffAltIcon />
                 )}
               </IconButton>
 
@@ -186,9 +190,9 @@ export function PhotoViewerModal({
                 onClick={() => onToggleFavourite(photo, !photo.favourited_by_user)}
               >
                 {photo.favourited_by_user ? (
-                  <BookmarkIcon color="primary" />
+                  <FavoriteIcon color="error" />
                 ) : (
-                  <BookmarkBorderIcon />
+                  <FavoriteBorderIcon />
                 )}
               </IconButton>
 

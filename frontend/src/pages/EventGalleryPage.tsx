@@ -1,6 +1,8 @@
 import DownloadIcon from '@mui/icons-material/Download';
+import ThumbUpOffAltIcon from '@mui/icons-material/ThumbUpOffAlt';
+import ThumbUpAltIcon from '@mui/icons-material/ThumbUpAlt';
 import FavoriteBorderIcon from '@mui/icons-material/FavoriteBorder';
-import BookmarkBorderIcon from '@mui/icons-material/BookmarkBorder';
+import FavoriteIcon from '@mui/icons-material/Favorite';
 import {
   downloadPhoto,
   downloadMultiplePhotos,
@@ -427,28 +429,28 @@ export function EventGalleryPage() {
 
                   {user && (
                     <CardActions>
-                        <FormControlLabel
-                          control={
-                            <Checkbox
-                              checked={photo.liked_by_user || false}
-                              onChange={(_, checked) => handleLike(photo.id, checked)}
-                              icon={<FavoriteBorderIcon />}
-                              checkedIcon={<FavoriteBorderIcon color="error" />}
-                            />
-                          }
-                          label=""
-                        />
-                        <FormControlLabel
-                          control={
-                            <Checkbox
-                              checked={photo.favourited_by_user || false}
-                              onChange={(_, checked) => handleFavourite(photo.id, checked)}
-                              icon={<BookmarkBorderIcon />}
-                              checkedIcon={<BookmarkBorderIcon color="primary" />}
-                            />
-                          }
-                          label=""
-                        />
+                      <FormControlLabel
+                        control={
+                          <Checkbox
+                            checked={photo.liked_by_user || false}
+                            onChange={(_, checked) => handleLike(photo.id, checked)}
+                            icon={<ThumbUpOffAltIcon />}
+                            checkedIcon={<ThumbUpAltIcon color="primary" />}
+                          />
+                        }
+                        label=""
+                      />
+                      <FormControlLabel
+                        control={
+                          <Checkbox
+                            checked={photo.favourited_by_user || false}
+                            onChange={(_, checked) => handleFavourite(photo.id, checked)}
+                            icon={<FavoriteBorderIcon />}
+                            checkedIcon={<FavoriteIcon color="error" />}
+                          />
+                        }
+                        label=""
+                      />
                     </CardActions>
                   )}
                 </Card>

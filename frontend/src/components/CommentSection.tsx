@@ -261,7 +261,10 @@ export function CommentSection({ photoId }: CommentSectionProps) {
 				) : (
 					<List dense sx={{ py: 0 }}>
 						{comments.map((comment) => {
-							const initial = comment.user_email?.[0]?.toUpperCase() || "?";
+							const initial =
+								comment.user_name?.[0]?.toUpperCase() ||
+								comment.user_email?.[0]?.toUpperCase() ||
+								"?";
 							const createdAt = new Date(comment.created_at).toLocaleString();
 							return (
 								<ListItem
@@ -303,7 +306,7 @@ export function CommentSection({ photoId }: CommentSectionProps) {
 										primary={
 											<Box display="flex" alignItems="center" gap={1}>
 												<Typography variant="subtitle2">
-													{comment.user_email}
+													{comment.user_name || comment.user_email}
 												</Typography>
 												<Typography
 													variant="caption"
